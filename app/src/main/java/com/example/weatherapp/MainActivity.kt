@@ -68,10 +68,19 @@ fun WeatherApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var isLocating by remember { mutableStateOf(false) }
+    var currentTheme by remember { mutableStateOf(ThemePreference.getTheme(context)) }
     var showSettings by remember { mutableStateOf(false) }
     var showFavorites by remember { mutableStateOf(false) }
+    var isLocating by remember { mutableStateOf(false) }
     var selectedHour by remember { mutableStateOf<HourWeather?>(null) }
+
+    val themeColors = when (currentTheme) {
+        WeatherTheme.CUTE -> ThemeConfig.cuteColors()
+        WeatherTheme.ROMANTIC -> ThemeConfig.romanticColors()
+        WeatherTheme.TECH -> ThemeConfig.techColors()
+        WeatherTheme.NATURE -> ThemeConfig.natureColors()
+        else -> ThemeConfig.defaultColors()
+    }
 
     val infiniteTransition = rememberInfiniteTransition()
     val floatingOffset by infiniteTransition.animateFloat(
@@ -93,21 +102,27 @@ fun WeatherApp() {
     )
 
     fun getGradientColors(temp: Int): List<Color> {
-        return when {
-            temp >= 30 -> listOf(Color(0xFFFF6B6B), Color(0xFFEE5A24))
-            temp >= 20 -> listOf(Color(0xFFFF9F43), Color(0xFFF0932B))
-            temp >= 10 -> listOf(Color(0xFF54A0FF), Color(0xFF2E86DE))
-            temp >= 0 -> listOf(Color(0xFF5F27CD), Color(0xFF341f97))
-            else -> listOf(Color(0xFF1B9CFC), Color(0xFF0ABDE3))
+        return if (currentTheme == WeatherTheme.DEFAULT) {
+            when {
+                temp >= 30 -> listOf(Color(0xFFFF6B6B), Color(0xFFEE5A24))
+                temp >= 20 -> listOf(Color(0xFFFF9F43), Color(0xFFF0932B))
+                temp >= 10 -> listOf(Color(0xFF54A0FF), Color(0xFF2E86DE))
+                temp >= 0 -> listOf(Color(0xFF5F27CD), Color(0xFF341f97))
+                else -> listOf(Color(0xFF1B9CFC), Color(0xFF0ABDE3))
+            }
+        } else {
+            listOf(themeColors.gradientStart, themeColors.gradientEnd)
         }
     }
 
-    var gradientColors by remember { mutableStateOf(listOf(Color(0xFF1A237E), Color(0xFF0D47A1))) }
+    var gradientColors by remember { mutableStateOf(listOf(themeColors.gradientStart, themeColors.gradientEnd)) }
 
-    LaunchedEffect(uiState) {
+    LaunchedEffect(uiState, currentTheme) {
         if (uiState is WeatherUiState.Success) {
             val temp = (uiState as WeatherUiState.Success).weather.current.tempC.toInt()
             gradientColors = getGradientColors(temp)
+        } else {
+            gradientColors = listOf(themeColors.gradientStart, themeColors.gradientEnd)
         }
     }
 
@@ -172,8 +187,14 @@ fun WeatherApp() {
                 }
 
                 Text(
-                    text = "🌤️ 天气助手",
-                    fontSize = 24.sp,
+                    text = when (currentTheme) {
+                        WeatherTheme.CUTE -> "🎀 粉粉天气"
+                        WeatherTheme.ROMANTIC -> "🌸 唯美天气"
+                        WeatherTheme.TECH -> "💙 科技天气"
+                        WeatherTheme.NATURE -> "🌿 自然天气"
+                        else -> "🌤️ 天气助手"
+                    },
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     letterSpacing = 2.sp
@@ -300,7 +321,14 @@ fun WeatherApp() {
         }
 
         if (showSettings) {
-            SettingsDialog(onDismiss = { showSettings = false })
+            SettingsDialog(
+                onDismiss = { showSettings = false },
+                currentTheme = currentTheme,
+                onThemeChange = { newTheme ->
+                    currentTheme = newTheme
+                    ThemePreference.saveTheme(context, newTheme)
+                }
+            )
         }
 
         if (selectedHour != null) {
@@ -921,26 +949,172 @@ fun LifestyleItemEnhanced(icon: String, value: String, label: String) {
 }
 
 @Composable
-fun SettingsDialog(onDismiss: () -> Unit) {
+fun SettingsDialog(
+    onDismiss: () -> Unit,
+    currentTheme: WeatherTheme,
+    onThemeChange: (WeatherTheme) -> Unit
+) {
+    var showThemeSelector by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("设置", color = Color(0xFF1A237E)) },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFF1A237E))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("设置", color = Color(0xFF1A237E), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        },
         text = {
             Column {
-                Text("⚙️ 功能开发中...")
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("• 主题切换", fontSize = 12.sp)
-                Text("• 通知提醒", fontSize = 12.sp)
-                Text("• 单位切换", fontSize = 12.sp)
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showThemeSelector = !showThemeSelector }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🎨", fontSize = 20.sp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("主题风格", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("当前：${currentTheme.displayName}", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                        Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.Gray)
+                    }
+                }
+
+                AnimatedVisibility(visible = showThemeSelector) {
+                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                        Text("选择主题", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+
+                        ThemeOption(
+                            name = "默认",
+                            icon = "🌤️",
+                            color = Color(0xFF1A237E),
+                            isSelected = currentTheme == WeatherTheme.DEFAULT,
+                            onClick = { onThemeChange(WeatherTheme.DEFAULT); showThemeSelector = false }
+                        )
+                        ThemeOption(
+                            name = "可爱粉",
+                            icon = "🎀",
+                            color = Color(0xFFE91E63),
+                            isSelected = currentTheme == WeatherTheme.CUTE,
+                            onClick = { onThemeChange(WeatherTheme.CUTE); showThemeSelector = false }
+                        )
+                        ThemeOption(
+                            name = "唯美紫",
+                            icon = "🌸",
+                            color = Color(0xFF9C27B0),
+                            isSelected = currentTheme == WeatherTheme.ROMANTIC,
+                            onClick = { onThemeChange(WeatherTheme.ROMANTIC); showThemeSelector = false }
+                        )
+                        ThemeOption(
+                            name = "科技蓝",
+                            icon = "💙",
+                            color = Color(0xFF00BCD4),
+                            isSelected = currentTheme == WeatherTheme.TECH,
+                            onClick = { onThemeChange(WeatherTheme.TECH); showThemeSelector = false }
+                        )
+                        ThemeOption(
+                            name = "自然绿",
+                            icon = "🌿",
+                            color = Color(0xFF4CAF50),
+                            isSelected = currentTheme == WeatherTheme.NATURE,
+                            onClick = { onThemeChange(WeatherTheme.NATURE); showThemeSelector = false }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingItem(
+                    icon = "🔔",
+                    title = "天气通知",
+                    subtitle = "每日天气推送"
+                )
+                SettingItem(
+                    icon = "🌡️",
+                    title = "温度单位",
+                    subtitle = "摄氏度 / 华氏度"
+                )
+                SettingItem(
+                    icon = "ℹ️",
+                    title = "关于",
+                    subtitle = "版本 2.0.0"
+                )
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭")
+                Text("关闭", color = Color(0xFF1A237E))
             }
         },
         containerColor = Color.White
     )
+}
+
+@Composable
+fun ThemeOption(
+    name: String,
+    icon: String,
+    color: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) color.copy(alpha = 0.1f) else Color.Transparent,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 24.sp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(name, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+            Spacer(modifier = Modifier.weight(1f))
+            if (isSelected) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingItem(icon: String, title: String, subtitle: String) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 20.sp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(subtitle, fontSize = 11.sp, color = Color.Gray)
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("开发中", fontSize = 11.sp, color = Color.Gray)
+        }
+    }
 }
 
 @Composable
