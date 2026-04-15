@@ -13,15 +13,17 @@ class WeatherViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<WeatherUiState>(WeatherUiState.Loading)
     val uiState: StateFlow<WeatherUiState> = _uiState.asStateFlow()
 
+    // 通过城市名搜索天气（含预报）
     fun searchWeather(cityName: String) {
         if (cityName.isBlank()) return
 
         viewModelScope.launch {
             _uiState.value = WeatherUiState.Loading
             try {
-                val response = RetrofitInstance.apiService.getCurrentWeather(
+                val response = RetrofitInstance.apiService.getForecastWeather(
                     apiKey = RetrofitInstance.getApiKey(),
-                    query = cityName.trim()
+                    query = cityName.trim(),
+                    days = 3
                 )
                 _uiState.value = WeatherUiState.Success(response)
             } catch (e: Exception) {
@@ -37,14 +39,16 @@ class WeatherViewModel : ViewModel() {
         }
     }
 
+    // 通过经纬度获取天气（含预报）
     fun searchWeatherByLocation(location: Location) {
         viewModelScope.launch {
             _uiState.value = WeatherUiState.Loading
             try {
                 val query = "${location.latitude},${location.longitude}"
-                val response = RetrofitInstance.apiService.getCurrentWeather(
+                val response = RetrofitInstance.apiService.getForecastWeather(
                     apiKey = RetrofitInstance.getApiKey(),
-                    query = query
+                    query = query,
+                    days = 3
                 )
                 _uiState.value = WeatherUiState.Success(response)
             } catch (e: Exception) {

@@ -10,6 +10,7 @@ android {
             minorApiLevel = 1
         }
     }
+    ndkVersion = "28.0.13004108"
 
     defaultConfig {
         applicationId = "com.example.weatherapp"
@@ -76,4 +77,13 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    // DataStore（存储历史搜索和收藏）
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+// 毛玻璃效果
+    implementation("androidx.compose.material3:material3-android:1.2.0")
+
+// 图表（空气质量）
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 }
