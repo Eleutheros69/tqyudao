@@ -30,7 +30,7 @@ class WeatherViewModel : ViewModel() {
                         e.message?.contains("401") == true -> "API密钥无效"
                         e.message?.contains("404") == true -> "找不到城市，请输入正确的城市拼音"
                         e.message?.contains("timeout") == true -> "网络超时，请重试"
-                        else -> "网络错误：${e.message}"
+                        else -> "网络错误，请检查网络连接"
                     }
                 )
             }
@@ -48,7 +48,7 @@ class WeatherViewModel : ViewModel() {
                 )
                 _uiState.value = WeatherUiState.Success(response)
             } catch (e: Exception) {
-                _uiState.value = WeatherUiState.Error("获取位置天气失败：${e.message}")
+                _uiState.value = WeatherUiState.Error("获取位置天气失败，请手动输入城市名")
             }
         }
     }
