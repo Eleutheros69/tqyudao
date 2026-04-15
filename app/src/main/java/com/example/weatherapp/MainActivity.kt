@@ -1,6 +1,7 @@
 package com.example.weatherapp
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -160,8 +161,17 @@ fun WeatherApp() {
         }
     }
 
+    // 启动时：优先显示上次搜索的城市
     LaunchedEffect(Unit) {
-        checkPermissionAndGetLocation()
+        val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+        val lastCity = prefs.getString("last_city", null)
+
+        if (lastCity != null && lastCity.isNotBlank()) {
+            cityInput = lastCity
+            viewModel.searchWeather(lastCity)
+        } else {
+            checkPermissionAndGetLocation()
+        }
     }
 
     Box(
@@ -255,9 +265,14 @@ fun WeatherApp() {
                         )
                     )
 
+                    // 搜索按钮 - 点击时保存城市
                     IconButton(
                         onClick = {
                             if (cityInput.isNotBlank()) {
+                                // 保存搜索的城市
+                                val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+                                prefs.edit().putString("last_city", cityInput).apply()
+
                                 viewModel.searchWeather(cityInput)
                             }
                         }
