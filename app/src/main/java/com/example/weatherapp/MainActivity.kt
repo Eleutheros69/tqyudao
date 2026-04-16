@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -47,6 +48,8 @@ import kotlin.math.cos
 import kotlin.math.sin
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.random.Random
+import androidx.compose.ui.graphics.graphicsLayer
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,9 +89,9 @@ fun WeatherApp() {
     val infiniteTransition = rememberInfiniteTransition()
     val floatingOffset by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 15f,
+        targetValue = 12f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = FastOutSlowInEasing),
+            animation = tween(2500, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         )
     )
@@ -99,6 +102,15 @@ fun WeatherApp() {
         animationSpec = infiniteRepeatable(
             animation = tween(20000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
+        )
+    )
+
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
         )
     )
 
@@ -161,7 +173,6 @@ fun WeatherApp() {
         }
     }
 
-    // 启动时：优先显示上次搜索的城市
     LaunchedEffect(Unit) {
         val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
         val lastCity = prefs.getString("last_city", null)
@@ -179,7 +190,8 @@ fun WeatherApp() {
             .fillMaxSize()
             .background(Brush.verticalGradient(gradientColors))
     ) {
-        AnimatedSun(rotationAngle)
+        FloatingParticles()
+        AnimatedSun(rotationAngle, pulseScale)
 
         Column(
             modifier = Modifier
@@ -193,7 +205,7 @@ fun WeatherApp() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { showFavorites = !showFavorites }) {
-                    Icon(Icons.Default.FavoriteBorder, contentDescription = "收藏", tint = Color.White)
+                    Icon(Icons.Default.FavoriteBorder, contentDescription = "收藏", tint = Color.White.copy(alpha = 0.9f))
                 }
 
                 Text(
@@ -207,22 +219,20 @@ fun WeatherApp() {
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    letterSpacing = 2.sp
+                    letterSpacing = 2.sp,
+                    modifier = Modifier.shadow(4.dp, RoundedCornerShape(8.dp))
                 )
 
                 IconButton(onClick = { showSettings = !showSettings }) {
-                    Icon(Icons.Default.Settings, contentDescription = "设置", tint = Color.White)
+                    Icon(Icons.Default.Settings, contentDescription = "设置", tint = Color.White.copy(alpha = 0.9f))
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Surface(
-                shape = RoundedCornerShape(50.dp),
-                shadowElevation = 8.dp,
-                tonalElevation = 0.dp,
-                color = Color.White.copy(alpha = 0.2f),
-                modifier = Modifier.fillMaxWidth()
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(50.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -234,12 +244,12 @@ fun WeatherApp() {
                     ) {
                         if (isLocating) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(22.dp),
                                 strokeWidth = 2.dp,
                                 color = Color.White
                             )
                         } else {
-                            Text("📍", fontSize = 24.sp)
+                            Text("📍", fontSize = 22.sp)
                         }
                     }
 
@@ -249,7 +259,8 @@ fun WeatherApp() {
                         placeholder = {
                             Text(
                                 "输入城市名...",
-                                color = Color.White.copy(alpha = 0.7f)
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 14.sp
                             )
                         },
                         modifier = Modifier.weight(1f),
@@ -261,11 +272,12 @@ fun WeatherApp() {
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
                             focusedPlaceholderColor = Color.White.copy(alpha = 0.5f),
-                            unfocusedPlaceholderColor = Color.White.copy(alpha = 0.5f)
-                        )
+                            unfocusedPlaceholderColor = Color.White.copy(alpha = 0.5f),
+                            cursorColor = Color.White
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                     )
 
-                    // 搜索按钮 - 点击时保存城市
                     IconButton(
                         onClick = {
                             if (cityInput.isNotBlank()) {
@@ -275,16 +287,12 @@ fun WeatherApp() {
                             }
                         }
                     ) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "搜索",
-                            tint = Color.White
-                        )
+                        Icon(Icons.Default.Search, contentDescription = "搜索", tint = Color.White)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             if (showFavorites) {
                 FavoriteCitiesBar(viewModel = viewModel)
@@ -300,35 +308,26 @@ fun WeatherApp() {
                 }
             ) { state ->
                 when (state) {
-                    is WeatherUiState.Loading -> {
-                        LoadingAnimation()
-                    }
-
+                    is WeatherUiState.Loading -> LoadingAnimation()
                     is WeatherUiState.Success -> {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .verticalScroll(rememberScrollState())
                         ) {
-                            CurrentWeatherCardEnhanced(
-                                weather = state.weather,
-                                offset = floatingOffset
-                            )
-
-                            Spacer(modifier = Modifier.height(20.dp))
+                            CurrentWeatherCardEnhanced(weather = state.weather, offset = floatingOffset)
+                            Spacer(modifier = Modifier.height(16.dp))
                             HourlyForecast(weather = state.weather)
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             ForecastCardEnhanced(weather = state.weather)
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             AirQualityCard(weather = state.weather)
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             LifestyleCardEnhanced(weather = state.weather)
+                            Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
-
-                    is WeatherUiState.Error -> {
-                        ErrorCard(message = state.message, onRetry = { checkPermissionAndGetLocation() })
-                    }
+                    is WeatherUiState.Error -> ErrorCard(message = state.message, onRetry = { checkPermissionAndGetLocation() })
                 }
             }
         }
@@ -345,46 +344,112 @@ fun WeatherApp() {
         }
 
         if (selectedHour != null) {
-            HourDetailDialog(
-                hour = selectedHour!!,
-                onDismiss = { selectedHour = null }
-            )
+            HourDetailDialog(hour = selectedHour!!, onDismiss = { selectedHour = null })
         }
     }
 }
 
 @Composable
-fun AnimatedSun(rotationAngle: Float) {
+fun FloatingParticles() {
+    val particles = remember { List(30) { Particle() } }
+    particles.forEach { particle ->
+        androidx.compose.runtime.key(particle.id) {
+            FloatingParticle(particle)
+        }
+    }
+}
+
+data class Particle(val id: Int = Random.nextInt(), val x: Float = Random.nextFloat(), val delay: Int = Random.nextInt(5000))
+
+@Composable
+fun FloatingParticle(particle: Particle) {
+    val infiniteTransition = rememberInfiniteTransition()
+    val offsetY by infiniteTransition.animateFloat(
+        initialValue = -50f,
+        targetValue = 2000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(12000 + particle.delay, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .offset(x = (particle.x * 350).dp, y = offsetY.dp)
+    ) {
+        drawCircle(
+            color = Color.White.copy(alpha = 0.08f),
+            radius = 2f
+        )
+    }
+}
+
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    shape: RoundedCornerShape = RoundedCornerShape(20.dp),
+    content: @Composable () -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        color = Color.White.copy(alpha = 0.12f),
+        shadowElevation = 6.dp
+    ) {
+        content()
+    }
+}
+
+@Composable
+fun AnimatedSun(rotationAngle: Float, pulseScale: Float) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 80.dp, end = 30.dp),
+            .padding(top = 100.dp, end = 40.dp),
         contentAlignment = Alignment.TopEnd
     ) {
         Canvas(
-            modifier = Modifier.size(80.dp)
+            modifier = Modifier
+                .size(90.dp)
+                .graphicsLayer {
+                    scaleX = pulseScale
+                    scaleY = pulseScale
+                }
         ) {
             val centerX = size.width / 2
             val centerY = size.height / 2
 
             drawCircle(
+                color = Color.White.copy(alpha = 0.1f),
+                radius = 50f,
+                center = Offset(centerX, centerY)
+            )
+
+            drawCircle(
                 color = Color.White.copy(alpha = 0.2f),
-                radius = 30f,
+                radius = 40f,
+                center = Offset(centerX, centerY)
+            )
+
+            drawCircle(
+                color = Color.White.copy(alpha = 0.35f),
+                radius = 28f,
                 center = Offset(centerX, centerY)
             )
 
             for (i in 0..11) {
                 val angle = Math.toRadians((i * 30.0 + rotationAngle).toDouble())
-                val startX = centerX + 25f * cos(angle).toFloat()
-                val startY = centerY + 25f * sin(angle).toFloat()
-                val endX = centerX + 45f * cos(angle).toFloat()
-                val endY = centerY + 45f * sin(angle).toFloat()
+                val startX = centerX + 32f * cos(angle).toFloat()
+                val startY = centerY + 32f * sin(angle).toFloat()
+                val endX = centerX + 52f * cos(angle).toFloat()
+                val endY = centerY + 52f * sin(angle).toFloat()
 
                 drawLine(
                     color = Color.White.copy(alpha = 0.25f),
                     start = Offset(startX, startY),
                     end = Offset(endX, endY),
-                    strokeWidth = 2f
+                    strokeWidth = 2.5f
                 )
             }
         }
@@ -408,8 +473,9 @@ fun LoadingAnimation() {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "获取天气中...",
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
             )
         }
     }
@@ -417,11 +483,7 @@ fun LoadingAnimation() {
 
 @Composable
 fun ErrorCard(message: String, onRetry: () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
+    GlassCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -436,13 +498,14 @@ fun ErrorCard(message: String, onRetry: () -> Unit) {
                 fontSize = 16.sp,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             Button(
                 onClick = onRetry,
                 shape = RoundedCornerShape(50.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White
-                )
+                ),
+                modifier = Modifier.padding(horizontal = 24.dp)
             ) {
                 Text("重试", color = Color(0xFF1A237E), fontWeight = FontWeight.Bold)
             }
@@ -452,32 +515,29 @@ fun ErrorCard(message: String, onRetry: () -> Unit) {
 
 @Composable
 fun FavoriteCitiesBar(viewModel: WeatherViewModel) {
-    val favoriteCities = listOf("Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu")
+    val favoriteCities = listOf("北京", "上海", "广州", "深圳", "成都")
 
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp)
+            .padding(bottom = 8.dp)
     ) {
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.padding(12.dp)
         ) {
             items(favoriteCities) { city ->
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(24.dp),
                     color = Color.White.copy(alpha = 0.2f),
                     modifier = Modifier.clickable { viewModel.searchWeather(city) }
                 ) {
                     Text(
                         text = city,
                         color = Color.White,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                     )
                 }
             }
@@ -487,14 +547,11 @@ fun FavoriteCitiesBar(viewModel: WeatherViewModel) {
 
 @Composable
 fun CurrentWeatherCardEnhanced(weather: WeatherResponse, offset: Float) {
-    Card(
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(20.dp, RoundedCornerShape(32.dp))
+            .shadow(8.dp, RoundedCornerShape(28.dp)),
+        shape = RoundedCornerShape(28.dp)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -502,15 +559,15 @@ fun CurrentWeatherCardEnhanced(weather: WeatherResponse, offset: Float) {
         ) {
             Text(
                 text = weather.location.name,
-                fontSize = 32.sp,
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = SimpleDateFormat("MM月dd日 EEEE", Locale.CHINESE).format(Date()),
-                fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.8f),
                 modifier = Modifier.padding(top = 4.dp)
             )
 
@@ -523,7 +580,7 @@ fun CurrentWeatherCardEnhanced(weather: WeatherResponse, offset: Float) {
             ) {
                 Text(
                     text = getWeatherIcon(weather.current.condition.text),
-                    fontSize = 72.sp
+                    fontSize = 68.sp
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 AnimatedContent(
@@ -534,7 +591,7 @@ fun CurrentWeatherCardEnhanced(weather: WeatherResponse, offset: Float) {
                 ) { temp ->
                     Text(
                         text = "$temp°",
-                        fontSize = 72.sp,
+                        fontSize = 68.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
@@ -543,9 +600,9 @@ fun CurrentWeatherCardEnhanced(weather: WeatherResponse, offset: Float) {
 
             Text(
                 text = weather.current.condition.text,
-                fontSize = 20.sp,
+                fontSize = 16.sp,
                 color = Color.White.copy(alpha = 0.9f),
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 4.dp)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -579,9 +636,18 @@ fun TempRangeItem(icon: String, label: String, value: String) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(icon, fontSize = 24.sp)
-        Text(label, fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
-        Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Surface(
+            shape = RoundedCornerShape(50.dp),
+            color = Color.White.copy(alpha = 0.2f),
+            modifier = Modifier.size(44.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(icon, fontSize = 22.sp)
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(label, fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f))
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }
 
@@ -589,23 +655,19 @@ fun TempRangeItem(icon: String, label: String, value: String) {
 fun HourlyForecast(weather: WeatherResponse) {
     val hours = weather.forecast.forecastDays[0].hour ?: return
 
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
+    GlassCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("⏰", fontSize = 20.sp)
+                Text("⏰", fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("24小时预报", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("24小时预报", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -635,7 +697,7 @@ fun HourlyItem(hour: HourWeather) {
     ) {
         Text(
             text = "$timeStr:00",
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             color = Color.White.copy(alpha = if (isCurrentHour) 1f else 0.7f),
             fontWeight = if (isCurrentHour) FontWeight.Bold else FontWeight.Normal
         )
@@ -656,23 +718,19 @@ fun HourlyItem(hour: HourWeather) {
 
 @Composable
 fun ForecastCardEnhanced(weather: WeatherResponse) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
+    GlassCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📅", fontSize = 20.sp)
+                Text("📅", fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("3天预报", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("3天预报", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -701,60 +759,54 @@ fun ForecastItemEnhanced(forecastDay: ForecastDay) {
         else -> dayOfWeek.take(2)
     }
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.2f)
-        ),
-        modifier = Modifier.width(120.dp)
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.12f),
+        modifier = Modifier.width(95.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
             Text(
                 text = shortDay,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
 
             Text(
                 text = forecastDay.date.substring(5),
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 color = Color.White.copy(alpha = 0.6f)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = getWeatherIcon(forecastDay.day.condition.text),
-                fontSize = 40.sp
+                fontSize = 34.sp
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "${forecastDay.day.maxTempC.toInt()}°",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = "/${forecastDay.day.minTempC.toInt()}°",
-                    fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.6f)
-                )
-            }
+            Text(
+                text = "${forecastDay.day.maxTempC.toInt()}°",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = "${forecastDay.day.minTempC.toInt()}°",
+                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.6f)
+            )
 
             if (forecastDay.day.chanceOfRain > 0) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "☔ ${forecastDay.day.chanceOfRain}%",
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     color = Color.White.copy(alpha = 0.7f)
                 )
             }
@@ -775,23 +827,19 @@ fun AirQualityCard(weather: WeatherResponse) {
         else -> AirQualityInfo("严重污染", Color(0xFF9C27B0), "避免长时间户外活动")
     }
 
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
+    GlassCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🌫️", fontSize = 20.sp)
+                Text("🌫️", fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("空气质量", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("空气质量", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -801,13 +849,13 @@ fun AirQualityCard(weather: WeatherResponse) {
                 Column {
                     Text(
                         text = aqi.toString(),
-                        fontSize = 48.sp,
+                        fontSize = 42.sp,
                         fontWeight = FontWeight.Bold,
                         color = aqiInfo.color
                     )
                     Text(
                         text = aqiInfo.level,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         color = aqiInfo.color,
                         fontWeight = FontWeight.Medium
                     )
@@ -816,7 +864,7 @@ fun AirQualityCard(weather: WeatherResponse) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = aqiInfo.description,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.8f),
                         textAlign = TextAlign.End
                     )
@@ -852,23 +900,19 @@ data class AirQualityInfo(
 
 @Composable
 fun LifestyleCardEnhanced(weather: WeatherResponse) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
+    GlassCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("💡", fontSize = 20.sp)
+                Text("💡", fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("生活指数", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("生活指数", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -891,7 +935,7 @@ fun LifestyleCardEnhanced(weather: WeatherResponse) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -910,7 +954,7 @@ fun LifestyleCardEnhanced(weather: WeatherResponse) {
                 LifestyleItemEnhanced(
                     icon = "👕",
                     value = getSuggestion(weather.current.tempC.toInt()),
-                    label = "穿衣建议"
+                    label = "穿衣"
                 )
             }
 
@@ -918,7 +962,7 @@ fun LifestyleCardEnhanced(weather: WeatherResponse) {
 
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = Color.White.copy(alpha = 0.1f),
+                color = Color.White.copy(alpha = 0.08f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -940,16 +984,16 @@ fun LifestyleItemEnhanced(icon: String, value: String, label: String) {
         Surface(
             shape = RoundedCornerShape(50.dp),
             color = Color.White.copy(alpha = 0.2f),
-            modifier = Modifier.size(48.dp)
+            modifier = Modifier.size(44.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(icon, fontSize = 24.sp)
+                Text(icon, fontSize = 22.sp)
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
-            fontSize = 14.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = Color.White
         )
