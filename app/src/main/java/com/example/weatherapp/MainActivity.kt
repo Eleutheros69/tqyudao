@@ -26,11 +26,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,7 +49,6 @@ import kotlin.math.sin
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.random.Random
-import androidx.compose.ui.graphics.graphicsLayer
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,6 +73,7 @@ fun WeatherApp() {
 
     var currentTheme by remember { mutableStateOf(ThemePreference.getTheme(context)) }
     var showSettings by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     var showFavorites by remember { mutableStateOf(false) }
     var isLocating by remember { mutableStateOf(false) }
     var selectedHour by remember { mutableStateOf<HourWeather?>(null) }
@@ -339,8 +339,13 @@ fun WeatherApp() {
                 onThemeChange = { newTheme ->
                     currentTheme = newTheme
                     ThemePreference.saveTheme(context, newTheme)
-                }
+                },
+                onShowAbout = { showSettings = false; showAbout = true }
             )
+        }
+
+        if (showAbout) {
+            AboutDialog(onDismiss = { showAbout = false })
         }
 
         if (selectedHour != null) {
@@ -1009,7 +1014,8 @@ fun LifestyleItemEnhanced(icon: String, value: String, label: String) {
 fun SettingsDialog(
     onDismiss: () -> Unit,
     currentTheme: WeatherTheme,
-    onThemeChange: (WeatherTheme) -> Unit
+    onThemeChange: (WeatherTheme) -> Unit,
+    onShowAbout: () -> Unit
 ) {
     var showThemeSelector by remember { mutableStateOf(false) }
 
@@ -1090,22 +1096,27 @@ fun SettingsDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 SettingItem(
                     icon = "🔔",
                     title = "天气通知",
-                    subtitle = "每日天气推送"
+                    subtitle = "每日天气推送",
+                    onClick = {}
                 )
+
                 SettingItem(
                     icon = "🌡️",
                     title = "温度单位",
-                    subtitle = "摄氏度 / 华氏度"
+                    subtitle = "摄氏度 / 华氏度",
+                    onClick = {}
                 )
+
                 SettingItem(
                     icon = "ℹ️",
                     title = "关于",
-                    subtitle = "版本 2.0.0"
+                    subtitle = "版本 2.0.0",
+                    onClick = onShowAbout
                 )
             }
         },
@@ -1116,6 +1127,93 @@ fun SettingsDialog(
         },
         containerColor = Color.White
     )
+}
+
+@Composable
+fun AboutDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🌤️", fontSize = 28.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("关于天气助手", color = Color(0xFF1A237E), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Text(
+                    text = "天气助手",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1A237E)
+                )
+                Text(
+                    text = "Weather Assistant",
+                    fontSize = 14.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Divider()
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                AboutItem(icon = "📱", text = "版本", value = "1.0.0")
+                AboutItem(icon = "👨‍💻", text = "开发者", value = "梅梅子")
+                AboutItem(icon = "📅", text = "更新日期", value = "2026年月")
+                AboutItem(icon = "🌐", text = "数据来源", value = "WeatherAPI.com")
+                AboutItem(icon = "🎨", text = "主题", value = "5种主题可选")
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Divider()
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "一款简洁美观的天气应用\n为您提供准确的天气信息",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "© 2026 Weather Assistant",
+                    fontSize = 10.sp,
+                    color = Color.Gray.copy(alpha = 0.6f)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = Color(0xFF1A237E))
+            }
+        },
+        containerColor = Color.White
+    )
+}
+
+@Composable
+fun AboutItem(icon: String, text: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row {
+            Text(icon, fontSize = 16.sp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(text, fontSize = 14.sp, color = Color.Gray)
+        }
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1A237E))
+    }
 }
 
 @Composable
@@ -1150,13 +1248,14 @@ fun ThemeOption(
 }
 
 @Composable
-fun SettingItem(icon: String, title: String, subtitle: String) {
+fun SettingItem(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .clickable { onClick() }
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -1169,7 +1268,9 @@ fun SettingItem(icon: String, title: String, subtitle: String) {
                 Text(subtitle, fontSize = 11.sp, color = Color.Gray)
             }
             Spacer(modifier = Modifier.weight(1f))
-            Text("开发中", fontSize = 11.sp, color = Color.Gray)
+            if (title != "关于") {
+                Text("开发中", fontSize = 11.sp, color = Color.Gray)
+            }
         }
     }
 }
