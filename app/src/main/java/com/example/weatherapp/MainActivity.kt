@@ -35,12 +35,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.weatherapp.ui.theme.WeatherAppTheme
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlin.math.cos
@@ -265,14 +268,11 @@ fun WeatherApp() {
                         )
                     )
 
-                    // 搜索按钮 - 点击时保存城市
                     IconButton(
                         onClick = {
                             if (cityInput.isNotBlank()) {
-                                // 保存搜索的城市
                                 val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
                                 prefs.edit().putString("last_city", cityInput).apply()
-
                                 viewModel.searchWeather(cityInput)
                             }
                         }
@@ -292,6 +292,7 @@ fun WeatherApp() {
                 FavoriteCitiesBar(viewModel = viewModel)
             }
 
+            // 内容区域 - 不使用下拉刷新，保持稳定
             AnimatedContent(
                 targetState = uiState,
                 transitionSpec = {

@@ -1,3 +1,5 @@
+import java.util.Properties
+import java.io.FileInputStream
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -37,6 +39,24 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    defaultConfig {
+        // ... 其他配置
+
+        // 读取 API Key
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(FileInputStream(localPropertiesFile))
+        }
+        val apiKey = localProperties.getProperty("WEATHER_API_KEY") ?: ""
+
+        buildConfigField("String", "WEATHER_API_KEY", "\"$apiKey\"")
+    }
+
+    // 确保 BuildConfig 生成
+    buildFeatures {
+        buildConfig = true
     }
 }
 
@@ -86,4 +106,5 @@ dependencies {
 // 图表（空气质量）
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }
