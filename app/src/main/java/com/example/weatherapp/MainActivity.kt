@@ -75,6 +75,7 @@ fun WeatherApp() {
     var isLocating by remember { mutableStateOf(false) }
     var selectedHour by remember { mutableStateOf<HourWeather?>(null) }
     var selectedTab by remember { mutableStateOf(0) }
+    var showAbout by remember { mutableStateOf(false) }
 
     val themeColors = when (currentTheme) {
         WeatherTheme.CUTE -> ThemeConfig.cuteColors()
@@ -275,12 +276,17 @@ fun WeatherApp() {
                     onThemeChange = { newTheme ->
                         currentTheme = newTheme
                         ThemePreference.saveTheme(context, newTheme)
-                    }
+                    },
+                    onShowAbout = { showAbout = true }
                 )
             }
 
             if (selectedHour != null) {
                 HourDetailDialog(hour = selectedHour!!, onDismiss = { selectedHour = null })
+            }
+
+            if (showAbout) {
+                AboutDialog(onDismiss = { showAbout = false })
             }
         }
     }
@@ -664,7 +670,11 @@ fun FavoritesTab(viewModel: WeatherViewModel) {
 }
 
 @Composable
-fun SettingsTab(currentTheme: WeatherTheme, onThemeChange: (WeatherTheme) -> Unit) {
+fun SettingsTab(
+    currentTheme: WeatherTheme,
+    onThemeChange: (WeatherTheme) -> Unit,
+    onShowAbout: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -709,13 +719,13 @@ fun SettingsTab(currentTheme: WeatherTheme, onThemeChange: (WeatherTheme) -> Uni
             }
         }
         item {
-            SettingCard(icon = "🔔", title = "天气通知", subtitle = "每日天气推送")
+            SettingCard(icon = "🔔", title = "天气通知", subtitle = "每日天气推送", onClick = {})
         }
         item {
-            SettingCard(icon = "🌡️", title = "温度单位", subtitle = "摄氏度 / 华氏度")
+            SettingCard(icon = "🌡️", title = "温度单位", subtitle = "摄氏度 / 华氏度", onClick = {})
         }
         item {
-            SettingCard(icon = "ℹ️", title = "关于", subtitle = "版本 2.0.0")
+            SettingCard(icon = "ℹ️", title = "关于", subtitle = "版本 2.0.0", onClick = onShowAbout)
         }
     }
 }
@@ -739,11 +749,13 @@ fun ThemeChip(name: String, icon: String, isSelected: Boolean, onClick: () -> Un
 }
 
 @Composable
-fun SettingCard(icon: String, title: String, subtitle: String) {
+fun SettingCard(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.15f)),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -758,7 +770,11 @@ fun SettingCard(icon: String, title: String, subtitle: String) {
                     Text(subtitle, fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
                 }
             }
-            Text("开发中", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
+            if (title != "关于") {
+                Text("开发中", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
+            } else {
+                Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
+            }
         }
     }
 }
@@ -872,6 +888,84 @@ fun HourDetailDialog(hour: HourWeather, onDismiss: () -> Unit) {
         confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
         containerColor = Color.White
     )
+}
+
+@Composable
+fun AboutDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🌤️", fontSize = 28.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("关于天气助手", color = Color(0xFF1A237E), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Text(
+                    text = "天气助手",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1A237E)
+                )
+                Text(
+                    text = "Weather Assistant",
+                    fontSize = 14.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Divider()
+                Spacer(modifier = Modifier.height(12.dp))
+                AboutItem(icon = "📱", text = "版本", value = "2.0.0")
+                AboutItem(icon = "👨‍💻", text = "开发者", value = "梅梅子")
+                AboutItem(icon = "📅", text = "更新日期", value = "2026年4月")
+                AboutItem(icon = "🌐", text = "数据来源", value = "WeatherAPI.com")
+                AboutItem(icon = "🎨", text = "主题", value = "5种主题可选")
+                Spacer(modifier = Modifier.height(12.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "一款简洁美观的天气应用\n为您提供准确的天气信息",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "© 2026 Weather Assistant",
+                    fontSize = 10.sp,
+                    color = Color.Gray.copy(alpha = 0.6f)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = Color(0xFF1A237E))
+            }
+        },
+        containerColor = Color.White
+    )
+}
+
+@Composable
+fun AboutItem(icon: String, text: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row {
+            Text(icon, fontSize = 16.sp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(text, fontSize = 14.sp, color = Color.Gray)
+        }
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1A237E))
+    }
 }
 
 fun getWeatherIcon(condition: String): String {
