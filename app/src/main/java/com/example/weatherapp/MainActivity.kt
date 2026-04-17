@@ -49,6 +49,8 @@ import kotlin.math.sin
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.random.Random
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,6 +78,25 @@ fun WeatherApp() {
     var selectedHour by remember { mutableStateOf<HourWeather?>(null) }
     var selectedTab by remember { mutableStateOf(0) }
     var showAbout by remember { mutableStateOf(false) }
+    var showPrivacy by remember { mutableStateOf(false) }
+
+    // 单位偏好: true=摄氏度, false=华氏度
+    var isCelsius by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+        isCelsius = prefs.getBoolean("is_celsius", true)
+    }
+    fun saveUnitPreference(celsius: Boolean) {
+        val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("is_celsius", celsius).apply()
+        isCelsius = celsius
+    }
+
+    // 温度转换函数
+    fun convertTemp(celsius: Double): Int {
+        return if (isCelsius) celsius.toInt() else ((celsius * 9 / 5) + 32).toInt()
+    }
+    fun convertTempInt(celsius: Int): Int = convertTemp(celsius.toDouble())
 
     val themeColors = when (currentTheme) {
         WeatherTheme.CUTE -> ThemeConfig.cuteColors()
@@ -268,7 +289,8 @@ fun WeatherApp() {
                         } else {
                             checkPermissionAndGetLocation()
                         }
-                    }
+                    },
+                    convertTemp = { convertTemp(it) }
                 )
                 1 -> FavoritesTab(viewModel = viewModel)
                 2 -> SettingsTab(
@@ -277,7 +299,10 @@ fun WeatherApp() {
                         currentTheme = newTheme
                         ThemePreference.saveTheme(context, newTheme)
                     },
-                    onShowAbout = { showAbout = true }
+                    onShowAbout = { showAbout = true },
+                    onShowPrivacy = { showPrivacy = true },
+                    isCelsius = isCelsius,
+                    onUnitChange = { saveUnitPreference(it) }
                 )
             }
 
@@ -287,6 +312,10 @@ fun WeatherApp() {
 
             if (showAbout) {
                 AboutDialog(onDismiss = { showAbout = false })
+            }
+
+            if (showPrivacy) {
+                PrivacyDialog(onDismiss = { showPrivacy = false })
             }
         }
     }
@@ -302,7 +331,8 @@ fun WeatherTab(
     isLocating: Boolean,
     floatingOffset: Float,
     onHourClick: (HourWeather) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    convertTemp: (Double) -> Int
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -362,9 +392,9 @@ fun WeatherTab(
             }
             is WeatherUiState.Success -> {
                 val weather = uiState.weather
-                item { CurrentWeatherCard(weather = weather, offset = floatingOffset) }
-                item { HourlyForecastCard(weather = weather, onHourClick = onHourClick) }
-                item { DailyForecastCard(weather = weather) }
+                item { CurrentWeatherCard(weather = weather, offset = floatingOffset, convertTemp = convertTemp) }
+                item { HourlyForecastCard(weather = weather, onHourClick = onHourClick, convertTemp = convertTemp) }
+                item { DailyForecastCard(weather = weather, convertTemp = convertTemp) }
                 item { AirQualityCardCompact(weather = weather) }
                 item { LifestyleGrid(weather = weather) }
                 item {
@@ -388,7 +418,7 @@ fun WeatherTab(
 }
 
 @Composable
-fun CurrentWeatherCard(weather: WeatherResponse, offset: Float) {
+fun CurrentWeatherCard(weather: WeatherResponse, offset: Float, convertTemp: (Double) -> Int) {
     Card(
         shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.15f)),
@@ -421,7 +451,7 @@ fun CurrentWeatherCard(weather: WeatherResponse, offset: Float) {
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 AnimatedContent(
-                    targetState = weather.current.tempC.toInt(),
+                    targetState = convertTemp(weather.current.tempC),
                     transitionSpec = { fadeIn() + scaleIn() togetherWith fadeOut() + scaleOut() }
                 ) { temp ->
                     Text(
@@ -443,16 +473,31 @@ fun CurrentWeatherCard(weather: WeatherResponse, offset: Float) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                TempInfo(icon = "🌡️", label = "最高", value = "${weather.forecast.forecastDays[0].day.maxTempC.toInt()}°")
-                TempInfo(icon = "❄️", label = "最低", value = "${weather.forecast.forecastDays[0].day.minTempC.toInt()}°")
-                TempInfo(icon = "🔥", label = "体感", value = "${weather.current.feelsLikeC.toInt()}°")
+                TempInfo(
+                    icon = "🌡️",
+                    label = "最高",
+                    value = "${convertTemp(weather.forecast.forecastDays[0].day.maxTempC)}°",
+                    convertTemp = convertTemp
+                )
+                TempInfo(
+                    icon = "❄️",
+                    label = "最低",
+                    value = "${convertTemp(weather.forecast.forecastDays[0].day.minTempC)}°",
+                    convertTemp = convertTemp
+                )
+                TempInfo(
+                    icon = "🔥",
+                    label = "体感",
+                    value = "${convertTemp(weather.current.feelsLikeC)}°",
+                    convertTemp = convertTemp
+                )
             }
         }
     }
 }
 
 @Composable
-fun TempInfo(icon: String, label: String, value: String) {
+fun TempInfo(icon: String, label: String, value: String, convertTemp: (Double) -> Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(icon, fontSize = 24.sp)
         Text(label, fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
@@ -461,7 +506,7 @@ fun TempInfo(icon: String, label: String, value: String) {
 }
 
 @Composable
-fun HourlyForecastCard(weather: WeatherResponse, onHourClick: (HourWeather) -> Unit) {
+fun HourlyForecastCard(weather: WeatherResponse, onHourClick: (HourWeather) -> Unit, convertTemp: (Double) -> Int) {
     val hours = weather.forecast.forecastDays[0].hour ?: return
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -473,7 +518,7 @@ fun HourlyForecastCard(weather: WeatherResponse, onHourClick: (HourWeather) -> U
             Spacer(modifier = Modifier.height(12.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(hours.take(24)) { hour ->
-                    HourlyCard(hour = hour, onClick = { onHourClick(hour) })
+                    HourlyCard(hour = hour, onClick = { onHourClick(hour) }, convertTemp = convertTemp)
                 }
             }
         }
@@ -481,7 +526,7 @@ fun HourlyForecastCard(weather: WeatherResponse, onHourClick: (HourWeather) -> U
 }
 
 @Composable
-fun HourlyCard(hour: HourWeather, onClick: () -> Unit) {
+fun HourlyCard(hour: HourWeather, onClick: () -> Unit, convertTemp: (Double) -> Int) {
     val timeStr = hour.time.substringAfter(" ").substringBefore(":")
     val isCurrentHour = timeStr == SimpleDateFormat("HH", Locale.getDefault()).format(Date())
     Card(
@@ -501,13 +546,13 @@ fun HourlyCard(hour: HourWeather, onClick: () -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(getWeatherIcon(hour.condition.text), fontSize = 28.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("${hour.tempC.toInt()}°", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("${convertTemp(hour.tempC)}°", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
 
 @Composable
-fun DailyForecastCard(weather: WeatherResponse) {
+fun DailyForecastCard(weather: WeatherResponse, convertTemp: (Double) -> Int) {
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.15f)),
@@ -517,7 +562,7 @@ fun DailyForecastCard(weather: WeatherResponse) {
             Text("3天预报", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             Spacer(modifier = Modifier.height(12.dp))
             weather.forecast.forecastDays.forEach { day ->
-                DailyItem(day = day)
+                DailyItem(day = day, convertTemp = convertTemp)
                 if (day != weather.forecast.forecastDays.last()) {
                     Divider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
                 }
@@ -527,7 +572,7 @@ fun DailyForecastCard(weather: WeatherResponse) {
 }
 
 @Composable
-fun DailyItem(day: ForecastDay) {
+fun DailyItem(day: ForecastDay, convertTemp: (Double) -> Int) {
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val date = dateFormat.parse(day.date) ?: Date()
     val dayOfWeek = SimpleDateFormat("EEEE", Locale.CHINESE).format(date)
@@ -548,7 +593,7 @@ fun DailyItem(day: ForecastDay) {
     ) {
         Text(shortDay, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.White, modifier = Modifier.width(50.dp))
         Text(getWeatherIcon(day.day.condition.text), fontSize = 28.sp)
-        Text("${day.day.minTempC.toInt()}° / ${day.day.maxTempC.toInt()}°", fontSize = 14.sp, color = Color.White)
+        Text("${convertTemp(day.day.minTempC)}° / ${convertTemp(day.day.maxTempC)}°", fontSize = 14.sp, color = Color.White)
         if (day.day.chanceOfRain > 0) {
             Text("☔ ${day.day.chanceOfRain}%", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
         }
@@ -593,7 +638,6 @@ fun AirQualityCardCompact(weather: WeatherResponse) {
 
 @Composable
 fun LifestyleGrid(weather: WeatherResponse) {
-    // 获取更多指标数据（添加空值安全）
     val pressure = weather.current.pressure?.toIntOrNull() ?: 0
     val visibility = weather.current.vis?.toIntOrNull() ?: 0
     val rainChance = weather.forecast.forecastDays[0].day.chanceOfRain
@@ -607,7 +651,6 @@ fun LifestyleGrid(weather: WeatherResponse) {
             Text("生活指数", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 第一行：日出、日落、湿度
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -619,7 +662,6 @@ fun LifestyleGrid(weather: WeatherResponse) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 第二行：风速、紫外线、穿衣
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -631,7 +673,6 @@ fun LifestyleGrid(weather: WeatherResponse) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 第三行：气压、能见度、降雨概率（新增）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -695,7 +736,10 @@ fun FavoritesTab(viewModel: WeatherViewModel) {
 fun SettingsTab(
     currentTheme: WeatherTheme,
     onThemeChange: (WeatherTheme) -> Unit,
-    onShowAbout: () -> Unit
+    onShowAbout: () -> Unit,
+    onShowPrivacy: () -> Unit,
+    isCelsius: Boolean,
+    onUnitChange: (Boolean) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -741,13 +785,43 @@ fun SettingsTab(
             }
         }
         item {
+            // 温度单位切换卡片
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.15f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🌡️", fontSize = 24.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("温度单位", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                            Text("摄氏度 / 华氏度", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
+                        }
+                    }
+                    Switch(
+                        checked = isCelsius,
+                        onCheckedChange = { onUnitChange(it) },
+                        thumbContent = {
+                            Text(if (isCelsius) "°C" else "°F", fontSize = 10.sp)
+                        }
+                    )
+                }
+            }
+        }
+        item {
             SettingCard(icon = "🔔", title = "天气通知", subtitle = "每日天气推送", onClick = {})
         }
         item {
-            SettingCard(icon = "🌡️", title = "温度单位", subtitle = "摄氏度 / 华氏度", onClick = {})
+            SettingCard(icon = "📄", title = "隐私协议", subtitle = "用户隐私保护", onClick = onShowPrivacy)
         }
         item {
-            SettingCard(icon = "ℹ️", title = "关于", subtitle = "版本 2.0.0", onClick = onShowAbout)
+            SettingCard(icon = "ℹ️", title = "关于", subtitle = "版本 1.0.0", onClick = onShowAbout)
         }
     }
 }
@@ -792,7 +866,7 @@ fun SettingCard(icon: String, title: String, subtitle: String, onClick: () -> Un
                     Text(subtitle, fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
                 }
             }
-            if (title != "关于") {
+            if (title != "关于" && title != "隐私协议") {
                 Text("开发中", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
             } else {
                 Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
@@ -942,7 +1016,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 )
                 Divider()
                 Spacer(modifier = Modifier.height(12.dp))
-                AboutItem(icon = "📱", text = "版本", value = "2.0.0")
+                AboutItem(icon = "📱", text = "版本", value = "1.0.0")
                 AboutItem(icon = "👨‍💻", text = "开发者", value = "梅梅子")
                 AboutItem(icon = "📅", text = "更新日期", value = "2026年4月")
                 AboutItem(icon = "🌐", text = "数据来源", value = "WeatherAPI.com")
@@ -967,6 +1041,48 @@ fun AboutDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("关闭", color = Color(0xFF1A237E))
+            }
+        },
+        containerColor = Color.White
+    )
+}
+
+@Composable
+fun PrivacyDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("隐私协议", color = Color(0xFF1A237E), fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 350.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "感谢您使用天气助手！我们非常重视您的隐私保护。\n\n" +
+                            "1. 信息收集\n" +
+                            "本应用仅收集您主动提供的城市名称和位置信息（需授权）。这些信息仅用于获取天气数据，不会用于其他目的。\n\n" +
+                            "2. 权限使用\n" +
+                            "• 网络权限：用于获取天气数据\n" +
+                            "• 位置权限：用于自动获取当前城市天气（可拒绝）\n\n" +
+                            "3. 数据存储\n" +
+                            "您的偏好设置（主题、单位、上次搜索城市）仅保存在本地设备，不会上传。\n\n" +
+                            "4. 第三方服务\n" +
+                            "本应用使用 WeatherAPI.com 提供天气数据，请求中包含城市名称，但不包含个人身份信息。\n\n" +
+                            "5. 信息共享\n" +
+                            "我们不会与任何第三方共享您的个人信息。\n\n" +
+                            "6. 政策更新\n" +
+                            "隐私协议如有更新，会在应用内提示。\n\n" +
+                            "如您有任何疑问，请联系：woucxzae@163.com",
+                    fontSize = 13.sp,
+                    color = Color.Gray,
+                    lineHeight = 20.sp
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("同意并关闭", color = Color(0xFF1A237E))
             }
         },
         containerColor = Color.White
