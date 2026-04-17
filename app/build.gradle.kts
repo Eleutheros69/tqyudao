@@ -107,4 +107,8 @@ dependencies {
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+// 协程支持（已有）
 }
