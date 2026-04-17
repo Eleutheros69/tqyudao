@@ -323,7 +323,7 @@ fun WeatherTab(
                         if (isLocating) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
                         } else {
-                            Text("📍", fontSize = 24.sp)   // 使用文字图标，避免 MyLocation 缺失
+                            Text("📍", fontSize = 24.sp)
                         }
                     }
                     OutlinedTextField(
@@ -593,6 +593,11 @@ fun AirQualityCardCompact(weather: WeatherResponse) {
 
 @Composable
 fun LifestyleGrid(weather: WeatherResponse) {
+    // 获取更多指标数据（添加空值安全）
+    val pressure = weather.current.pressure?.toIntOrNull() ?: 0
+    val visibility = weather.current.vis?.toIntOrNull() ?: 0
+    val rainChance = weather.forecast.forecastDays[0].day.chanceOfRain
+
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.15f)),
@@ -601,6 +606,8 @@ fun LifestyleGrid(weather: WeatherResponse) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("生活指数", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             Spacer(modifier = Modifier.height(12.dp))
+
+            // 第一行：日出、日落、湿度
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -609,7 +616,10 @@ fun LifestyleGrid(weather: WeatherResponse) {
                 LifestyleChip(icon = "🌇", label = "日落", value = weather.forecast.forecastDays[0].astro.sunset)
                 LifestyleChip(icon = "💧", label = "湿度", value = "${weather.current.humidity}%")
             }
+
             Spacer(modifier = Modifier.height(12.dp))
+
+            // 第二行：风速、紫外线、穿衣
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -617,6 +627,18 @@ fun LifestyleGrid(weather: WeatherResponse) {
                 LifestyleChip(icon = "💨", label = "风速", value = "${weather.current.windKph.toInt()} km/h")
                 LifestyleChip(icon = "☀️", label = "紫外线", value = "${weather.current.uv}")
                 LifestyleChip(icon = "👕", label = "穿衣", value = getSuggestion(weather.current.tempC.toInt()))
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 第三行：气压、能见度、降雨概率（新增）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                LifestyleChip(icon = "⏲️", label = "气压", value = "$pressure hPa")
+                LifestyleChip(icon = "👁️", label = "能见度", value = "$visibility km")
+                LifestyleChip(icon = "🌧️", label = "降雨概率", value = "$rainChance%")
             }
         }
     }

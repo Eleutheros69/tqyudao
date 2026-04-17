@@ -6,8 +6,7 @@ import com.google.gson.annotations.SerializedName
 data class WeatherResponse(
     @SerializedName("location") val location: Location,
     @SerializedName("current") val current: CurrentWeather,
-    @SerializedName("forecast") val forecast: Forecast,
-    @SerializedName("air_quality") val airQuality: AirQuality? = null
+    @SerializedName("forecast") val forecast: Forecast
 )
 
 data class Location(
@@ -23,7 +22,9 @@ data class CurrentWeather(
     @SerializedName("wind_kph") val windKph: Double,
     @SerializedName("uv") val uv: Double,
     @SerializedName("condition") val condition: Condition,
-    @SerializedName("air_quality") val airQuality: AirQuality? = null
+    @SerializedName("air_quality") val airQuality: AirQuality? = null,
+    @SerializedName("pressure_mb") val pressure: String? = null,   // 气压 (hPa)
+    @SerializedName("vis_km") val vis: String? = null              // 能见度 (km)
 )
 
 data class Forecast(
